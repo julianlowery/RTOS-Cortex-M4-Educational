@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# STM32CubeIDE Build Artifacts
+Debug/
+Release/
+build/
+bin/
+
+# Compiled Object files (if generated outside build dirs)
+*.o
+*.obj
+
+# Binary/Executable/Map files (if generated outside build dirs)
+*.elf
+*.bin
+*.hex
+*.map
+*.su
+
+# IDE Specific (Eclipse-based)
+# Keep .project and .cproject to allow easy import.
+# Ignore user-specific settings and launch configurations.
+.settings/
+*.launch
+
+# Dependency files
+*.d
