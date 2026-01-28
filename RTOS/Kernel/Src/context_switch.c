@@ -39,3 +39,27 @@ void PendSV_Handler(void) {
 		:::
 	);
 }
+
+__attribute__((naked))
+void SVC_Handler(void) {
+	// TODO: could use the svc # to determine which task should be kicked off first based on priority.
+	// but for now just using task0
+
+	__asm volatile (
+		// move PSP into R0
+		"MRS   R0, PSP	\n"
+		"ADD   R0, R0, #32	\n"  // remove/skip R0–R3,R12,LR,PC,xPSR - these were stacked on PSP entering SVC_Handler
+
+		// "Load Multiple, Increment After". Effectively pop R4-R11 from task
+		// stack starting at value in R0. "!" causes the final address update be in R0
+		"LDMIA R0!, {R4-R11}	\n"
+
+		// move new psp value from R0 back to PSP register (setting PSP)
+		"MSR   PSP, R0	\n"
+
+		:
+		:
+		: "r0", "memory"
+	);
+}
+

@@ -18,9 +18,6 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
-#include "stm32f4xx_it.h"
-#include "globals.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -33,7 +30,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-extern tcb_t tcb_array[6];
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -143,41 +140,16 @@ void UsageFault_Handler(void)
 /**
   * @brief This function handles System service call via SWI instruction.
   */
-void __attribute__((naked)) SVC_Handler(void)
-{
-	// Since we're modifying context directly, we do note want the compiler generating the prologue
-	// and epilogue for SVC_Handler. (Otherwise it will use r7 to hold the frame pointer (prologue), assume it's untouched,
-	// and use it to try to restore MSP in epilogue. But we will have overwritten r7 manually.
-
-	// could use the svc # to determine which task should be kicked off first based on priority.
-	// but for now just using task0
-
-  /* USER CODE BEGIN SVCall_IRQn 0 */
-
-//	restoreContext((uint32_t)tcb_array[0].stack_pointer);
-
-	__asm volatile (
-		// move PSP into R0
-		"MRS   R0, PSP	\n"
-		"ADD   R0, R0, #32	\n"  // remove/skip R0–R3,R12,LR,PC,xPSR - these were stacked on PSP entering SVC_Handler
-
-		// "Load Multiple, Increment After". Effectively pop R4-R11 from task
-		// stack starting at value in R0. "!" causes the final address update be in R0
-		"LDMIA R0!, {R4-R11}	\n"
-
-		// move new psp value from R0 back to PSP register (setting PSP)
-		"MSR   PSP, R0	\n"
-
-		:
-		:
-		: "r0", "memory"
-	);
-
-  /* USER CODE END SVCall_IRQn 0 */
-  /* USER CODE BEGIN SVCall_IRQn 1 */
-
-  /* USER CODE END SVCall_IRQn 1 */
-}
+//void __attribute__((naked)) SVC_Handler(void)
+//{
+//  /* USER CODE BEGIN SVCall_IRQn 0 */
+//
+//
+//  /* USER CODE END SVCall_IRQn 0 */
+//  /* USER CODE BEGIN SVCall_IRQn 1 */
+//
+//  /* USER CODE END SVCall_IRQn 1 */
+//}
 
 /**
   * @brief This function handles Debug monitor.
@@ -204,10 +176,10 @@ void DebugMon_Handler(void)
 //
 //  /* USER CODE END PendSV_IRQn 1 */
 //}
-//
-///**
-//  * @brief This function handles System tick timer.
-//  */
+
+/**
+  * @brief This function handles System tick timer.
+  */
 //void SysTick_Handler(void)
 //{
 //  /* USER CODE BEGIN SysTick_IRQn 0 */

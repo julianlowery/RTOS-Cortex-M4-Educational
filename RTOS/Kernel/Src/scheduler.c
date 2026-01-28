@@ -3,7 +3,6 @@
 
 #include "scheduler.h"
 
-uint32_t msTicks = 0;
 uint32_t msp_enable_not = (1<<1);
 
 extern tcb_t tcb_array[6];
@@ -37,42 +36,6 @@ uint32_t pop_from_stack(tcb_t *tcb){
 	tcb->stack_pointer++;
 	
 	return returnValue;
-}
-
-void SysTick_Handler(void) {
-	const uint32_t time_slice_len = 100;
-	static uint32_t time_slice_count = time_slice_len;
-	
-    msTicks++;
-
-    // time slice math and reset is decoupled from scheduler run logic
-    bool time_slice_expired = false;
-    if (time_slice_count > 0) {
-    	time_slice_count--;
-    }
-
-    if (time_slice_count == 0) {
-    	time_slice_expired = true;
-    	time_slice_count = time_slice_len;
-    }
-	
-	if(run_scheduler){
-		run_scheduler = false;
-		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
-	}
-	
-	else if(time_slice_expired){
-		// If old task and new task are same priority, rearrange (cycle) the queue
-		// for the scheduler
-		if(scheduler.running_task->priority == scheduler.current_priority) {
-			tcb_t *old_task = scheduler.running_task;
-			tcb_list_t *list = &scheduler.ready_lists[scheduler.current_priority];
-			dequeue(list);
-			enqueue(list, old_task);
-		}
-		
-		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
-	}
 }
 
 void scheduler_update(void) {

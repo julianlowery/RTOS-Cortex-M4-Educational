@@ -10,6 +10,8 @@ extern tcb_t tcb_main;
 extern scheduler_t scheduler;
 extern bool run_scheduler;
 
+uint32_t msTicks = 0;
+
 static void idle_task() {
 	while (1) {
 		__WFI();
@@ -100,40 +102,40 @@ void rtos_start() {
 
 }
 
-void __attribute__((naked)) SVC_Handler(void)
-{
-	// Since we're modifying context directly, we do note want the compiler generating the prologue
-	// and epilogue for SVC_Handler. (Otherwise it will use r7 to hold the frame pointer (prologue), assume it's untouched,
-	// and use it to try to restore MSP in epilogue. But we will have overwritten r7 manually.
+void SysTick_Handler(void) {
+	const uint32_t time_slice_len = 100;
+	static uint32_t time_slice_count = time_slice_len;
 
-	// could use the svc # to determine which task should be kicked off first based on priority.
-	// but for now just using task0
+    msTicks++;
 
-  /* USER CODE BEGIN SVCall_IRQn 0 */
+    // time slice math and reset is decoupled from scheduler run logic
+    bool time_slice_expired = false;
+    if (time_slice_count > 0) {
+    	time_slice_count--;
+    }
 
-//	restoreContext((uint32_t)tcb_array[0].stack_pointer);
+    if (time_slice_count == 0) {
+    	time_slice_expired = true;
+    	time_slice_count = time_slice_len;
+    }
 
-	__asm volatile (
-		// move PSP into R0
-		"MRS   R0, PSP	\n"
-		"ADD   R0, R0, #32	\n"  // remove/skip R0–R3,R12,LR,PC,xPSR - these were stacked on PSP entering SVC_Handler
+	if(run_scheduler){
+		run_scheduler = false;
+		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+	}
 
-		// "Load Multiple, Increment After". Effectively pop R4-R11 from task
-		// stack starting at value in R0. "!" causes the final address update be in R0
-		"LDMIA R0!, {R4-R11}	\n"
+	else if(time_slice_expired){
+		// If old task and new task are same priority, rearrange (cycle) the queue
+		// for the scheduler
+		if(scheduler.running_task->priority == scheduler.current_priority) {
+			tcb_t *old_task = scheduler.running_task;
+			tcb_list_t *list = &scheduler.ready_lists[scheduler.current_priority];
+			dequeue(list);
+			enqueue(list, old_task);
+		}
 
-		// move new psp value from R0 back to PSP register (setting PSP)
-		"MSR   PSP, R0	\n"
-
-		:
-		:
-		: "r0", "memory"
-	);
-
-  /* USER CODE END SVCall_IRQn 0 */
-  /* USER CODE BEGIN SVCall_IRQn 1 */
-
-  /* USER CODE END SVCall_IRQn 1 */
+		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+	}
 }
 
 void semaphore_init(semaphore_t *sem, uint8_t initial_count){
