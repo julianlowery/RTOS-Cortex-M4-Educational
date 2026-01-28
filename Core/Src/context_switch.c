@@ -8,4 +8,34 @@
 #include "context_switch.h"
 
 
+__attribute__((noreturn, naked))
+void PendSV_Handler(void) {
 
+	__asm volatile (
+		// save current task context to stack immediately
+		"MRS   R0, PSP				\n"
+		"STMDB R0!, {R4-R11}		\n"
+
+		// store updated old task stack pointer into old task tcb struct
+		"LDR	R1, =scheduler		\n" // R1 now holds address of scheduler struct
+		"LDR	R1, [R1]			\n" // R1 now holds address of old tcb
+		"STR	R0, [R1, #4]		\n" // Store PSP into old task tcb (second member)
+
+		"PUSH	{R3, LR}			\n" // save LR (EXC_RETURN) (R3 just to keep stack 8-byte aligned)
+		"BL		scheduler_update	\n" // scheduler now points to new task tcb
+		"POP	{R3, LR}			\n"
+
+		// get new task stack pointer from tcb
+		"LDR	R1, =scheduler		\n"
+		"LDR	R1, [R1]			\n"
+		"LDR	R0, [R1, #4]		\n"
+
+		// restore context of new task
+		"LDMIA	R0!, {R4-R11}		\n"
+		"MSR	PSP, R0				\n"
+
+		"BX		LR					\n"
+
+		:::
+	);
+}

@@ -93,10 +93,10 @@ semaphore_t sem_high;
 
 void SemTest_HighTask1(void* arg){
 	log_msg("HighTask1 Running\n\r");
-	log_msg("HighTask1 Taking high_sem\n\r");
+	log_msg("HighTask1 Taking high_sem (and blocking)\n\r");
 	semaphore_take(&sem_high);
 	log_msg("HighTask1 Running\n\r");
-	log_msg("HowTask1 Giving sem_high (unblocking HighTask2) and yielding\n\r");
+	log_msg("HighTask1 Giving sem_high (unblocking HighTask2) and yielding\n\r");
 	semaphore_give(&sem_high);
 	yield();
 	log_msg("HighTask1 Running\n\r");
@@ -108,7 +108,7 @@ void SemTest_HighTask1(void* arg){
 
 void SemTest_HighTask2(void* arg){
 	log_msg("HighTask2 Running\r");
-	log_msg("HighTask2 Taking high_sem\n\r");
+	log_msg("HighTask2 Taking high_sem (and blocking)\n\r");
 	semaphore_take(&sem_high);
 	log_msg("HighTask2 Running\n\r");
 	log_msg("HighTask2 Yielding\n\r");
@@ -156,7 +156,8 @@ semaphore_t sem;
 mutex_t mut;
 
 void MutTest_High(void *arg) {
-	log_msg("HighTask running - blocking on semaphore\r\n");
+	log_msg("HighTask running\r\n");
+	log_msg("HighTask taking semaphore - blocking\r\n");
 	semaphore_take(&sem);
 	log_msg("HighTask running - releasing semaphore, unblocking MediumTask\r\n");
 	log_msg("HighTask taking mutex - blocking\r\n");
@@ -203,6 +204,65 @@ void mutex_test() {
 }
 
 
+#define QUEUE_CAP (10)
+#define QUEUE_ITEM_SIZE (sizeof(uint8_t))
+uint8_t queue_buffer[QUEUE_CAP];
+queue_t message_queue;
+
+void QueueTest_Prod1(void *arg) {
+	log_msg("Prod1 producing value 11\r\n");
+	uint8_t val1 = 11;
+	queue_send(&message_queue, &val1);
+	yield();
+
+	log_msg("Prod1 producing value 12\r\n");
+	uint8_t val2 = 12;
+	queue_send(&message_queue, &val2);
+
+	yield();
+	while(1) {}
+}
+
+void QueueTest_Prod2(void *arg) {
+	log_msg("Prod2 producing value 21\r\n");
+	uint8_t val1 = 21;
+	queue_send(&message_queue, &val1);
+	yield();
+
+	log_msg("Prod2 producing value 22\r\n");
+	uint8_t val2 = 22;
+	queue_send(&message_queue, &val2);
+
+	yield();
+	while(1) {}
+}
+
+void QueueTest_Cons(void *arg) {
+	for(int i = 0; i < 4; i++) {
+		uint8_t recieved_val = 0;
+		queue_recieve(&message_queue, &recieved_val);
+
+		char log_msg_buf[25];
+		snprintf(log_msg_buf, sizeof(log_msg_buf), "Cons Recieved %i\r\n", recieved_val);
+		log_msg(log_msg_buf);
+	}
+	log_msg("\nComplete\r\n");
+	log_print();
+	while(1) {}
+}
+
+void message_queue_test() {
+	printf("Running Message Queue Demo... \r\n\n");
+	queue_init(&message_queue, &queue_buffer, QUEUE_ITEM_SIZE, QUEUE_CAP);
+
+	rtos_init();
+
+  	task_create(QueueTest_Prod1, (void*)0X0, MEDIUM);
+  	task_create(QueueTest_Prod2, (void*)0X0, MEDIUM);
+  	task_create(QueueTest_Cons, (void*)0X0, HIGH);
+}
+
+
 int main(void)
 {
 	HAL_Init();
@@ -214,12 +274,13 @@ int main(void)
 
 
   	printf("\nStarting...\r\n\n");
-  	SysTick_Config(SystemCoreClock/1000);
 
 
-//  	semaphore_test();
 //  	scheduling_test();
-  	mutex_test();
+//  	semaphore_test();
+//  	mutex_test();
+  	message_queue_test();
+
 
 
   	rtos_start();

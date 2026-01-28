@@ -1,6 +1,7 @@
 #ifndef __globals_h
 #define __globals_h
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -63,5 +64,16 @@ typedef struct{
 	priority_t inherited_priority;
 	tcb_list_t block_list;
 }mutex_t;
+
+typedef struct{
+	uint8_t *buffer;
+	size_t cap;
+	mutex_t mut;
+	semaphore_t sem_avail_data;
+	semaphore_t sem_avail_space;
+	size_t item_size_bytes;
+	size_t head;
+	size_t tail;
+}queue_t;
 
 #endif // globals_h

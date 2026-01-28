@@ -1,6 +1,8 @@
+#include <stdio.h>
+#include <string.h>
+
 #include "rtos.h"
 #include "scheduler.h"
-#include <stdio.h>
 
 extern tcb_t tcb_array[6];
 extern tcb_t tcb_main;
@@ -86,11 +88,52 @@ void rtos_start() {
 	__set_CONTROL((uint32_t)__get_CONTROL()|psp_enable);
 	__ISB(); // flush (dump) pipeline, guarantee new instructions are fetched in new state
 
+	// SysTick to 1ms
+	// 16,000,000 Hz / 1,000 = 16,000 ticks (systick will trigger every 16,000 ticks)
+	// On a 16 MHz clock that's every 1ms
+	SysTick_Config(SystemCoreClock/1000);
+
 
 	__asm volatile ("svc 0");
 
 	while(true){}
 
+}
+
+void __attribute__((naked)) SVC_Handler(void)
+{
+	// Since we're modifying context directly, we do note want the compiler generating the prologue
+	// and epilogue for SVC_Handler. (Otherwise it will use r7 to hold the frame pointer (prologue), assume it's untouched,
+	// and use it to try to restore MSP in epilogue. But we will have overwritten r7 manually.
+
+	// could use the svc # to determine which task should be kicked off first based on priority.
+	// but for now just using task0
+
+  /* USER CODE BEGIN SVCall_IRQn 0 */
+
+//	restoreContext((uint32_t)tcb_array[0].stack_pointer);
+
+	__asm volatile (
+		// move PSP into R0
+		"MRS   R0, PSP	\n"
+		"ADD   R0, R0, #32	\n"  // remove/skip R0–R3,R12,LR,PC,xPSR - these were stacked on PSP entering SVC_Handler
+
+		// "Load Multiple, Increment After". Effectively pop R4-R11 from task
+		// stack starting at value in R0. "!" causes the final address update be in R0
+		"LDMIA R0!, {R4-R11}	\n"
+
+		// move new psp value from R0 back to PSP register (setting PSP)
+		"MSR   PSP, R0	\n"
+
+		:
+		:
+		: "r0", "memory"
+	);
+
+  /* USER CODE END SVCall_IRQn 0 */
+  /* USER CODE BEGIN SVCall_IRQn 1 */
+
+  /* USER CODE END SVCall_IRQn 1 */
 }
 
 void semaphore_init(semaphore_t *sem, uint8_t initial_count){
@@ -196,68 +239,106 @@ void mutex_give(mutex_t *mutex) {
 	uint32_t primask = __get_PRIMASK();
 	__disable_irq();
 	
-	if(scheduler.running_task != mutex->owner_tcb) {
-		__enable_irq();
-		__set_PRIMASK(primask);
-		return;
-	}
-	if(mutex->available == true) {
-		__enable_irq();
-		__set_PRIMASK(primask);
-		return;
-	}
+	bool should_yield = false;
 	
-	// If no tasks are blocked on the mutex
-	if(mutex->block_list.head == NULL){
-		mutex->available = true;
-		mutex->owner_tcb = NULL;
-		mutex->owner_true_priority = IDLE;
-		mutex->inherited_priority = IDLE;
-		mutex->block_list.head = NULL;
-		mutex->block_list.tail = NULL;
-		return;
-	}
-	
-	// If task(s) are blocked on mutex and owner did not inherit higher priority
-	else if(mutex->owner_true_priority == mutex->inherited_priority) {
-		mutex->owner_tcb = mutex->block_list.head;
-		mutex->owner_true_priority = mutex->block_list.head->priority;
-		mutex->inherited_priority = mutex->block_list.head->priority;
+	// Only proceed if running task owns the mutex and mutex is locked
+	if(scheduler.running_task == mutex->owner_tcb && mutex->available == false) {
+
+		// If no tasks are blocked on the mutex, reset it and exit
+		if(mutex->block_list.head == NULL){
+			mutex->available = true;
+			mutex->owner_tcb = NULL;
+			mutex->owner_true_priority = IDLE;
+			mutex->inherited_priority = IDLE;
+			mutex->block_list.head = NULL;
+			mutex->block_list.tail = NULL;
+		}
 		
-		tcb_t * freed_task = dequeue(&mutex->block_list);
-		// Add unblocked task to scheduler ready queue
-		enqueue(&scheduler.ready_lists[freed_task->priority], freed_task);
-	}
-	
-	// If task(s) blocked on mutex forced mutex owner to a higher priority
-	else if(mutex->inherited_priority < mutex->owner_true_priority) { // lower number is higher priority
-		// Set running task back to true priority
-		scheduler.running_task->priority = mutex->owner_true_priority;
+		// Else we need to handoff the mutex
+		else {
 		
-		// Set running task back to its true priority ready list
-		dequeue(&scheduler.ready_lists[scheduler.current_priority]);
-		enqueue(&scheduler.ready_lists[mutex->owner_true_priority], mutex->owner_tcb);
+			// If we we had inherited a high priority while holding mutex
+			if(mutex->inherited_priority < mutex->owner_true_priority) {
+
+				// Set running task back to true priority
+				scheduler.running_task->priority = mutex->owner_true_priority;
+
+				// Set running task back to its true priority ready list
+				dequeue(&scheduler.ready_lists[scheduler.current_priority]);
+				enqueue(&scheduler.ready_lists[mutex->owner_true_priority], mutex->owner_tcb);
+
+				// Set flag to handle special scheduling case
+				scheduler.running_task->mutex_released = true;
+
+			}
+
+			// Adjust mutex attributes to new unblocked task
+			mutex->owner_tcb = mutex->block_list.head;
+			mutex->owner_true_priority = mutex->block_list.head->priority;
+			mutex->inherited_priority = mutex->block_list.head->priority;
+
+			// Set unblocked task to scheduler ready queue
+			tcb_t * freed_task = dequeue(&mutex->block_list);
+			enqueue(&scheduler.ready_lists[freed_task->priority], freed_task);
+
+			should_yield = true;
+
+		}
 		
-		// Adjust mutex attributes to new unblocked task
-		mutex->owner_tcb = mutex->block_list.head;
-		mutex->owner_true_priority = mutex->block_list.head->priority;
-		mutex->inherited_priority = mutex->block_list.head->priority;
-		
-		// Set unblocked task to scheduler ready queue
-		tcb_t * freed_task = dequeue(&mutex->block_list);
-		enqueue(&scheduler.ready_lists[freed_task->priority], freed_task);
-		
-		// Set flag to handle special scheduling case
-		scheduler.running_task->mutex_released = true;
 	}
 
 	__enable_irq();
 	__set_PRIMASK(primask);
 
-	// Immediately run scheduler to switch tasks
-	SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
-    __DSB();
-    __ISB();
+	if (should_yield) {
+		// Immediately run scheduler to switch tasks
+		SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+		__DSB();
+		__ISB();
+	}
+}
+
+
+bool queue_init(queue_t *queue, void *buffer, size_t item_size, size_t cap) {
+	if (queue == NULL || buffer == NULL) {
+		return false;
+	}
+	queue->buffer = (uint8_t*)buffer;
+	queue->cap = cap;
+	queue->item_size_bytes = item_size;
+	queue->head = 0;
+	queue->tail = 0;
+
+	mutex_init(&queue->mut);
+	semaphore_init(&queue->sem_avail_data, 0);
+	semaphore_init(&queue->sem_avail_space, cap);
+	return true;
+}
+
+void queue_send(queue_t *queue, void *src) {
+	semaphore_take(&queue->sem_avail_space);
+	mutex_take(&queue->mut);
+
+	void *dest = &queue->buffer[queue->head * queue->item_size_bytes];
+	memcpy(dest, src, queue->item_size_bytes);
+	queue->head = (queue->head + 1) % queue->cap;
+
+	mutex_give(&queue->mut);
+	semaphore_give(&queue->sem_avail_data);
+	return;
+}
+
+void queue_recieve(queue_t *queue, void *dest){
+	semaphore_take(&queue->sem_avail_data);
+	mutex_take(&queue->mut);
+
+	void *src = &queue->buffer[queue->tail * queue->item_size_bytes];
+	memcpy(dest, src, queue->item_size_bytes);
+	queue->tail = (queue->tail + 1) % queue->cap;
+
+	mutex_give(&queue->mut);
+	semaphore_give(&queue->sem_avail_space);
+	return;
 }
 
 void yield() {
@@ -279,5 +360,3 @@ void yield() {
     __DSB();
     __ISB();
 }
-
-

@@ -19,8 +19,11 @@ void mutex_init(mutex_t *mutex);
 void mutex_give(mutex_t *mutex);
 void mutex_take(mutex_t *mutex);
 
-void yield();
+// Message Queue interface
+bool queue_init(queue_t *queue, void *buffer, size_t item_size, size_t cap);
+void queue_send(queue_t *queue, void *src);
+void queue_recieve(queue_t *queue, void *dest);
 
-// Implement a return type for semaphore, mutex, and task_create functions
+void yield();
 
 #endif //__rtos_h
