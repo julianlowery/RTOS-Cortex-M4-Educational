@@ -4,6 +4,7 @@
 An educational, custom-built preemptive kernel designed for the ARM Cortex-M4 architecture. Implements fixed-priority preemptive task scheduling, semaphores, priority-inheritance mutexes, and message queues. Originally implemented in **2019**, and recently revived and extended on new hardware.
 
 **Hardware Used:** STM32F4xx (STM32 Nucleo-F401RE)
+
 **Toolchain:** STM32CubeIDE (GCC ARM)
 
 ---
