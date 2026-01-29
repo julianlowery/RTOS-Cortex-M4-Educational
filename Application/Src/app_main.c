@@ -10,7 +10,6 @@
 #include "rtos.h"
 #include "logger.h"
 
-
 #include "scheduler_demo.h"
 #include "semaphore_demo.h"
 #include "mutex_demo.h"

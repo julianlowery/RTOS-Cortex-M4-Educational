@@ -5,9 +5,10 @@
  *      Author: julianlowery
  */
 
+#include <stdio.h>
+
 #include "rtos.h"
 #include "logger.h"
-#include "stdio.h"
 
 #define QUEUE_CAP (10)
 #define QUEUE_ITEM_SIZE (sizeof(uint8_t))
