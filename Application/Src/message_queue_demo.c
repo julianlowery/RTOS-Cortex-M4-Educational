@@ -51,7 +51,7 @@ void queue_demo_consumer_task(void* arg) {
         queue_recieve(&message_queue, &recieved_val);
 
         char log_msg_buf[25];
-        snprintf(log_msg_buf, sizeof(log_msg_buf), "Consumer recieved %i\r\n", recieved_val);
+        snprintf(log_msg_buf, sizeof(log_msg_buf), "Consumer received %i\r\n", recieved_val);
         log_msg(log_msg_buf);
     }
     log_msg("\nComplete\r\n");

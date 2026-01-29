@@ -62,7 +62,7 @@ void sem_demo_low_task2(void* arg) {
 }
 
 void semaphore_demo_init() {
-    printf("running Semaphore Demo...\r\n\n");
+    printf("Running Semaphore Demo...\r\n\n");
     semaphore_init(&sem_high, 0);
     task_create(sem_demo_high_task1, (void*)0X0, HIGH);
     task_create(sem_demo_high_task2, (void*)0X0, HIGH);
