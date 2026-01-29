@@ -3,6 +3,8 @@
 
 #include "globals.h"
 
+#define NUM_SUPPORTED_TASKS (12)
+
 
 void SysTick_Handler(void);
 void PendSV_Handler(void);

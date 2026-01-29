@@ -5,8 +5,9 @@
 #include "rtos.h"
 #include "scheduler.h"
 
-extern tcb_t tcb_array[6];
-extern tcb_t tcb_main;
+#define TASK_STACK_SIZE_WORDS (256)
+
+extern tcb_t tcb_array[NUM_SUPPORTED_TASKS];
 
 extern scheduler_t scheduler;
 extern bool run_scheduler;
@@ -23,26 +24,18 @@ void rtos_init(){
 	NVIC_SetPriority(PendSV_IRQn, 0xFF);   // lowest
 	NVIC_SetPriority(SysTick_IRQn, 0xFE);  // just above PendSV (we don't want Pend_SV to nest inside sysTick)
 
-	const uint32_t stack_size = 0x100; // Actaully physical stack_size/4 to account for 32 bit pointer incrementation
-	const uint32_t num_tcbs = 6;
-	const uint8_t main_task_num = 0;
+	const uint32_t stack_size = TASK_STACK_SIZE_WORDS;
+	const uint32_t num_tcbs = NUM_SUPPORTED_TASKS;
 	const uint32_t vector_table_address = 0x0;
-	
-	tcb_array[main_task_num].task_id = main_task_num;
-	tcb_array[main_task_num].stack_pointer = tcb_array[main_task_num].stack_base_address; // This will be set properly as soon as task is switched out of
-	tcb_array[main_task_num].state = READY;
-	tcb_array[main_task_num].priority = IDLE;
-	tcb_array[main_task_num].stack_size = 0; // not used yet
-	tcb_array[main_task_num].mutex_released = false;
-	
-	// Initalize all task stack addresses (including main task stack)
+
+	// Initalize all task stack addresses
 	uint32_t *initial_sp_pointer = (uint32_t*)vector_table_address; // first vector table entry holds initial msp
-	tcb_main.stack_base_address = (uint32_t*)(*initial_sp_pointer);
-	tcb_main.stack_overflow_address = tcb_main.stack_base_address-(stack_size*2);
+	uint32_t *stack_base = (uint32_t*)(*initial_sp_pointer);
+	uint32_t *rtos_task_stacks_base = stack_base-(stack_size*2);
 	
 	for(uint8_t tcb_num = 0; tcb_num < num_tcbs; tcb_num++){
-		tcb_array[tcb_num].stack_base_address = (tcb_main.stack_overflow_address)-(stack_size*(tcb_num));
-		tcb_array[tcb_num].stack_overflow_address = tcb_main.stack_overflow_address-((stack_size*(tcb_num+1))); // remove -1
+		tcb_array[tcb_num].stack_base_address = (rtos_task_stacks_base)-(stack_size*(tcb_num));
+		tcb_array[tcb_num].stack_overflow_address = rtos_task_stacks_base-((stack_size*(tcb_num+1)));
 	}
 	
 	// TODO (additional safety) enforce stack 8 byte alignment, should do a check here.
@@ -66,6 +59,8 @@ static void task_exit_error() {
 }
 
 void task_create(rtosTaskFunc_t function_pointer, void* function_arg, priority_t task_priority){
+	// TODO: catch too many tasks created case
+
 	static uint8_t task_number = 0;
 	uint32_t default_psr_val = 0x01000000;
 
@@ -74,6 +69,7 @@ void task_create(rtosTaskFunc_t function_pointer, void* function_arg, priority_t
 	tcb_array[task_number].state = READY;
 	tcb_array[task_number].priority = task_priority;
 	tcb_array[task_number].stack_size = 0; // not used yet
+	tcb_array[task_number].mutex_released = false;
 
 	// push all stack values incrementing psp (set up the stack for first context switch)
 	push_to_stack(&tcb_array[task_number], default_psr_val);
@@ -91,13 +87,16 @@ void task_create(rtosTaskFunc_t function_pointer, void* function_arg, priority_t
 }
 
 void rtos_start() {
+	const uint32_t vector_table_address = 0x0;
+	uint32_t stack_base = *(uint32_t*)vector_table_address;
+
 	// SysTick to 1ms
 	// 16,000,000 Hz / 1,000 = 16,000 ticks (systick will trigger every 16,000 ticks)
 	// On a 16 MHz clock that's every 1ms
 	SysTick_Config(SystemCoreClock/1000);
 
 	// Set MSP register back to base address of main() stack - effectively nukes the main() thread (locals are lost here)
-	__set_MSP((uint32_t)tcb_main.stack_base_address);
+	__set_MSP(stack_base);
 
 	// We should find the highest priority and start with that. Just starting with task 0 for now
 	__set_PSP((uint32_t)tcb_array[0].stack_pointer);

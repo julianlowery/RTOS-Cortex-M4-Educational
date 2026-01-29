@@ -3,12 +3,7 @@
 
 #include "scheduler.h"
 
-uint32_t msp_enable_not = (1<<1);
-
-extern tcb_t tcb_array[6];
-
-tcb_t tcb_array[6];
-tcb_t tcb_main;
+tcb_t tcb_array[NUM_SUPPORTED_TASKS];
 
 bool run_scheduler = false;
 
