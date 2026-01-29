@@ -22,7 +22,7 @@
 #define MESSAGE_QUEUE_DEMO 	(4)
 
 // Select Demo
-#define DEMO_SELECT			(SCHEDULER_DEMO)
+#define DEMO_SELECT			(MUTEX_DEMO)
 
 
 void app_start() {

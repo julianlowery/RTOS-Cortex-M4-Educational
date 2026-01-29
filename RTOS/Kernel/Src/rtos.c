@@ -159,20 +159,18 @@ void semaphore_init(semaphore_t *sem, uint8_t initial_count){
 void semaphore_take(semaphore_t *sem){
 	uint32_t primask = __get_PRIMASK();
 	__disable_irq();
-	if(sem->count > 0)
+	if(sem->count > 0) {
 		sem->count--;
-	else{
+	} else {
 		enqueue(&sem->block_list, scheduler.running_task);
 		dequeue(&scheduler.ready_lists[scheduler.current_priority]);
-	}
-	__enable_irq();
-	__set_PRIMASK(primask);
 
-	// Immediately run scheduler to switch tasks.
-	// Barriers are used to guarantee immediate effect.
-	SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
-    __DSB(); // ensure write to hardware completes
-    __ISB(); // flush CPU pipeline, guarantee new instruction fetch accounts for the updated hardware state
+		SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+	    __DSB(); // ensure writes to hardware complete
+	    __ISB(); // flush CPU pipeline, guarantee new instruction fetch accounts for the updated hardware state
+	}
+
+	__set_PRIMASK(primask);
 }
 
 void semaphore_give(semaphore_t *sem){
@@ -187,15 +185,15 @@ void semaphore_give(semaphore_t *sem){
 		if(freed_task->priority < scheduler.running_task->priority){ // lower number is higher priority
 			// Update priority to scheduler can switch to higher priority
 			scheduler.current_priority = freed_task->priority;
+
+			// Run scheduler to switch tasks
+			SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+		    __DSB();
+		    __ISB();
 		}
 	}
-	__enable_irq();
-	__set_PRIMASK(primask);
 
-	// Immediately run scheduler to switch tasks
-	SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
-    __DSB();
-    __ISB();
+	__set_PRIMASK(primask);
 }
 
 void mutex_init(mutex_t *mutex){
@@ -219,7 +217,7 @@ void mutex_take(mutex_t *mutex){
 		mutex->block_list.head = NULL;
 		mutex->block_list.tail = NULL;
 		mutex->block_list.size = 0;
-		__enable_irq();
+
 		__set_PRIMASK(primask);
 
 	} else {
@@ -238,7 +236,6 @@ void mutex_take(mutex_t *mutex){
 			mutex->owner_tcb->priority = mutex->inherited_priority;
 		}
 
-		__enable_irq();
 		__set_PRIMASK(primask);
 
 		// Immediately run scheduler to switch tasks
@@ -300,7 +297,6 @@ void mutex_give(mutex_t *mutex) {
 		
 	}
 
-	__enable_irq();
 	__set_PRIMASK(primask);
 
 	if (should_yield) {
@@ -365,7 +361,6 @@ void yield() {
 	dequeue(list);
 	enqueue(list, old_task);
 
-	__enable_irq();
 	__set_PRIMASK(primask);
 
 	// Immediately run scheduler to switch tasks

@@ -28,7 +28,7 @@ void sem_demo_high_task1(void* arg){
 }
 
 void sem_demo_high_task2(void* arg){
-	log_msg("High task2 running\r");
+	log_msg("High task2 running\n\r");
 	log_msg("High task2 taking high_sem (and blocking)\n\r");
 	semaphore_take(&sem_high);
 	log_msg("High task2 running\n\r");
