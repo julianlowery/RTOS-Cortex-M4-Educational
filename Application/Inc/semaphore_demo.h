@@ -8,9 +8,8 @@
 #ifndef INC_SEMAPHORE_DEMO_H_
 #define INC_SEMAPHORE_DEMO_H_
 
-#include "rtos.h"
 #include "logger.h"
-
+#include "rtos.h"
 
 void sem_demo_high_task1(void* arg);
 void sem_demo_high_task2(void* arg);
