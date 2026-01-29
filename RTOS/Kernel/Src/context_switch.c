@@ -5,8 +5,6 @@
  *      Author: julianlowery
  */
 
-#include "context_switch.h"
-
 
 __attribute__((noreturn, naked))
 void PendSV_Handler(void) {
@@ -21,7 +19,7 @@ void PendSV_Handler(void) {
 		"LDR	R1, [R1]			\n" // R1 now holds address of old tcb
 		"STR	R0, [R1, #4]		\n" // Store PSP into old task tcb (second member)
 
-		"PUSH	{R3, LR}			\n" // save LR (EXC_RETURN) (R3 just to keep stack 8-byte aligned)
+		"PUSH	{R3, LR}			\n" // save LR (EXC_RETURN) (R3 as well just to keep stack 8-byte aligned)
 		"BL		scheduler_update	\n" // scheduler now points to new task tcb
 		"POP	{R3, LR}			\n"
 

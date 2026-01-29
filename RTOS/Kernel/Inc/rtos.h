@@ -2,7 +2,6 @@
 #define __rtos_h
 
 #include "globals.h"
-#include <stm32f4xx.h>
 
 // Interface Functions
 void rtos_init(void);

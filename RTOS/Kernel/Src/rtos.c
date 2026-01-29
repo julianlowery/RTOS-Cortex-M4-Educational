@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stm32f4xx.h>
 
 #include "rtos.h"
 #include "scheduler.h"
@@ -49,7 +50,18 @@ void rtos_init(){
 	task_create(idle_task, NULL, IDLE);
 }
 
-void task_exit_error() {
+static bool push_to_stack(tcb_t *tcb, uint32_t value){
+	tcb->stack_pointer--;
+
+	if(tcb->stack_pointer <= tcb->stack_overflow_address){
+		return false;
+	}
+
+	*(tcb->stack_pointer) = value;
+	return true;
+}
+
+static void task_exit_error() {
 	while(1) {}
 }
 
@@ -79,7 +91,12 @@ void task_create(rtosTaskFunc_t function_pointer, void* function_arg, priority_t
 }
 
 void rtos_start() {
-	// Set MSP register back to base address of main() stack - effectively nukes the main() thread
+	// SysTick to 1ms
+	// 16,000,000 Hz / 1,000 = 16,000 ticks (systick will trigger every 16,000 ticks)
+	// On a 16 MHz clock that's every 1ms
+	SysTick_Config(SystemCoreClock/1000);
+
+	// Set MSP register back to base address of main() stack - effectively nukes the main() thread (locals are lost here)
 	__set_MSP((uint32_t)tcb_main.stack_base_address);
 
 	// We should find the highest priority and start with that. Just starting with task 0 for now
@@ -89,11 +106,6 @@ void rtos_start() {
 	// Enable PSP, when we exit the Handler we will start executing the first task
 	__set_CONTROL((uint32_t)__get_CONTROL()|psp_enable);
 	__ISB(); // flush (dump) pipeline, guarantee new instructions are fetched in new state
-
-	// SysTick to 1ms
-	// 16,000,000 Hz / 1,000 = 16,000 ticks (systick will trigger every 16,000 ticks)
-	// On a 16 MHz clock that's every 1ms
-	SysTick_Config(SystemCoreClock/1000);
 
 
 	__asm volatile ("svc 0");

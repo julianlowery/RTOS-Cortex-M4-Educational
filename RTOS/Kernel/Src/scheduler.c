@@ -17,27 +17,6 @@ scheduler_t scheduler = {
 	.current_priority = IDLE
 };
 
-
-bool push_to_stack(tcb_t *tcb, uint32_t value){
-	tcb->stack_pointer--;
-	
-	// Check for stack overflow
-	if(tcb->stack_pointer <= tcb->stack_overflow_address){
-		printf("STACK OVERFLOW from task id: %li/n", tcb->task_id);
-		return false;
-	}
-	
-	*(tcb->stack_pointer) = value;
-	return true;
-}
-
-uint32_t pop_from_stack(tcb_t *tcb){
-	uint32_t returnValue = *(tcb->stack_pointer);
-	tcb->stack_pointer++;
-	
-	return returnValue;
-}
-
 void scheduler_update(void) {
 	// THREE scheduling cases:
 	//	1. New higher priority task became ready - need to move up in priority
