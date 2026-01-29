@@ -31,15 +31,13 @@ void rtos_init() {
     const uint32_t vector_table_address = 0x0;
 
     // Initalize all task stack addresses
-    uint32_t* initial_sp_pointer =
-        (uint32_t*)vector_table_address;  // first vector table entry holds initial msp
+    uint32_t* initial_sp_pointer = (uint32_t*)vector_table_address;  // first vector table entry holds initial msp
     uint32_t* stack_base = (uint32_t*)(*initial_sp_pointer);
     uint32_t* rtos_task_stacks_base = stack_base - (stack_size * 2);
 
     for (uint8_t tcb_num = 0; tcb_num < num_tcbs; tcb_num++) {
         tcb_array[tcb_num].stack_base_address = (rtos_task_stacks_base) - (stack_size * (tcb_num));
-        tcb_array[tcb_num].stack_overflow_address =
-            rtos_task_stacks_base - ((stack_size * (tcb_num + 1)));
+        tcb_array[tcb_num].stack_overflow_address = rtos_task_stacks_base - ((stack_size * (tcb_num + 1)));
     }
 
     // TODO (additional safety) enforce stack 8 byte alignment, should do a check here.
@@ -186,8 +184,7 @@ void semaphore_give(semaphore_t* sem) {
         tcb_t* freed_task = dequeue(&sem->block_list);
         // Add unblocked task to scheduler ready queue
         enqueue(&scheduler.ready_lists[freed_task->priority], freed_task);
-        if (freed_task->priority <
-            scheduler.running_task->priority) {  // lower number is higher priority
+        if (freed_task->priority < scheduler.running_task->priority) {  // lower number is higher priority
             // Update priority to scheduler can switch to higher priority
             scheduler.current_priority = freed_task->priority;
 
@@ -230,8 +227,7 @@ void mutex_take(mutex_t* mutex) {
         dequeue(&scheduler.ready_lists[scheduler.current_priority]);
 
         // Handle priority inheritance case
-        if (scheduler.current_priority <
-            mutex->inherited_priority) {  // low priority number is a higher priority
+        if (scheduler.current_priority < mutex->inherited_priority) {  // low priority number is a higher priority
 
             // Remove mutex owner task from its ready queue with remove function
             remove_from_list(&scheduler.ready_lists[mutex->inherited_priority], mutex->owner_tcb);
