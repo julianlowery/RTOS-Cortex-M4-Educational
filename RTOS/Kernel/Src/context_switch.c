@@ -5,7 +5,7 @@
  *      Author: julianlowery
  */
 
-__attribute__((noreturn, naked)) void PendSV_Handler(void) {
+__attribute__((naked)) void PendSV_Handler(void) {
     __asm volatile(
         // save current task context to stack immediately
         "MRS   R0, PSP				\n"
