@@ -53,7 +53,6 @@ __attribute__((naked)) void SVC_Handler(void) {
         // move new psp value from R0 back to PSP register (setting PSP)
         "MSR   PSP, R0	\n"
 
-        :
-        :
-        : "r0", "memory");
+        "BX   LR    \n"
+        );
 }
